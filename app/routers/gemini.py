@@ -45,8 +45,8 @@ async def chat_with_assistant(request: Request, body: ChatRequest):
         raise HTTPException(status_code=499, detail="Client closed request before completion.")
 
     try:
-        text = await agent_runtime.handle_chat(body)
-        return ChatResponse(text=text)
+        text, thinking = await agent_runtime.handle_chat(body)
+        return ChatResponse(text=text, thinking=thinking)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

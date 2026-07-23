@@ -61,6 +61,7 @@ class ChatMessageDB(Base):
     image = Column(Text, nullable=True)
     file = Column(Text, nullable=True)
     fileName = Column(String, nullable=True)
+    thinking = Column(Text, nullable=True)
     timestamp = Column(String, nullable=False)
     created_at = Column(String, nullable=False)
 

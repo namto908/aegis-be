@@ -292,8 +292,27 @@ class AgentRuntime:
                 last_user_file = msg.file
                 last_user_fileName = msg.fileName
 
-        if not contents:
-            contents = [{"role": "user", "parts": [{"text": "Xin chào Trợ lý Aegis!"}]}]
+        # Construct dynamic agent thinking log (Hermes thinking simulation)
+        thinking_lines = [
+            "🔍 Đang phân tích tin nhắn và tệp đính kèm của chủ nhân...",
+            f"⏱️ Đã chèn ngữ cảnh thời gian thực tế: {datetime.now().strftime('%H:%M:%S (%d/%m/%Y)')}"
+        ]
+        
+        try:
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            user_md_path = os.path.join(base_dir, "memories", "USER.md")
+            memory_md_path = os.path.join(base_dir, "memories", "MEMORY.md")
+            
+            if os.path.exists(user_md_path):
+                thinking_lines.append("🧠 Đọc bộ nhớ chủ nhân (USER.md): Đã nạp đặc điểm và phong cách giao tiếp cá nhân.")
+            if os.path.exists(memory_md_path):
+                thinking_lines.append("⚙️ Đọc bộ nhớ dự án (MEMORY.md): Đã nạp môi trường công nghệ và quy tắc vận hành.")
+        except Exception:
+            pass
+
+        thinking_lines.append("📊 Đã cập nhật trạng thái thời gian thực của Servers & Taskboard vào chỉ thị hệ thống.")
+        thinking_lines.append("🤖 Gửi toàn bộ ngữ cảnh và lịch sử trò chuyện sang mô hình Gemini để suy nghĩ phản hồi...")
+        thinking_text = "\n".join(thinking_lines)
 
         response_text = await self.gemini.generate_content(
             contents=contents,
@@ -320,6 +339,7 @@ class AgentRuntime:
                     image=last_user_img,
                     file=last_user_file,
                     fileName=last_user_fileName,
+                    thinking=None,
                     timestamp=now_str,
                     created_at=iso_now
                 )
@@ -333,6 +353,7 @@ class AgentRuntime:
                 image=None,
                 file=None,
                 fileName=None,
+                thinking=thinking_text,
                 timestamp=now_str,
                 created_at=iso_now
             )
@@ -348,7 +369,7 @@ class AgentRuntime:
         except Exception as e:
             logger.error(f"Error persisting chat history: {e}")
 
-        return response_text
+        return response_text, thinking_text
 
     async def _extract_and_learn_memories(self, user_msg: str, model_reply: str):
         """

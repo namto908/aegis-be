@@ -43,6 +43,7 @@ class ChatMessage(BaseModel):
     image: Optional[str] = None
     file: Optional[str] = None
     fileName: Optional[str] = None
+    thinking: Optional[str] = None
 
 
 class ChatRequest(BaseModel):
@@ -52,6 +53,7 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     text: str
+    thinking: Optional[str] = None
 
 
 class NewsRequest(BaseModel):
@@ -76,6 +78,7 @@ class ChatMessageItem(BaseModel):
     image: Optional[str] = None
     file: Optional[str] = None
     fileName: Optional[str] = None
+    thinking: Optional[str] = None
     timestamp: str
     created_at: str
 
