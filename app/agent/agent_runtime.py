@@ -294,8 +294,8 @@ class AgentRuntime:
 
         # Construct dynamic agent thinking log (Hermes thinking simulation)
         thinking_lines = [
-            "🔍 Đang phân tích tin nhắn và tệp đính kèm của chủ nhân...",
-            f"⏱️ Đã chèn ngữ cảnh thời gian thực tế: {datetime.now().strftime('%H:%M:%S (%d/%m/%Y)')}"
+            "Đang phân tích tin nhắn và tệp đính kèm của chủ nhân...",
+            f"Đã chèn ngữ cảnh thời gian thực tế: {datetime.now().strftime('%H:%M:%S (%d/%m/%Y)')}"
         ]
         
         try:
@@ -304,14 +304,14 @@ class AgentRuntime:
             memory_md_path = os.path.join(base_dir, "memories", "MEMORY.md")
             
             if os.path.exists(user_md_path):
-                thinking_lines.append("🧠 Đọc bộ nhớ chủ nhân (USER.md): Đã nạp đặc điểm và phong cách giao tiếp cá nhân.")
+                thinking_lines.append("Đọc bộ nhớ chủ nhân (USER.md): Đã nạp đặc điểm và phong cách giao tiếp cá nhân.")
             if os.path.exists(memory_md_path):
-                thinking_lines.append("⚙️ Đọc bộ nhớ dự án (MEMORY.md): Đã nạp môi trường công nghệ và quy tắc vận hành.")
+                thinking_lines.append("Đọc bộ nhớ dự án (MEMORY.md): Đã nạp môi trường công nghệ và quy tắc vận hành.")
         except Exception:
             pass
 
-        thinking_lines.append("📊 Đã cập nhật trạng thái thời gian thực của Servers & Taskboard vào chỉ thị hệ thống.")
-        thinking_lines.append("🤖 Gửi toàn bộ ngữ cảnh và lịch sử trò chuyện sang mô hình Gemini để suy nghĩ phản hồi...")
+        thinking_lines.append("Đã cập nhật trạng thái thời gian thực của Servers & Taskboard vào chỉ thị hệ thống.")
+        thinking_lines.append("Gửi toàn bộ ngữ cảnh và lịch sử trò chuyện sang mô hình Gemini để suy nghĩ phản hồi...")
         thinking_text = "\n".join(thinking_lines)
 
         response_text = await self.gemini.generate_content(
