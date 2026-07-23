@@ -40,6 +40,7 @@ class BriefingResponse(BaseModel):
 class ChatMessage(BaseModel):
     role: str  # "user" or "model" or "assistant"
     content: str
+    image: Optional[str] = None
 
 
 class ChatRequest(BaseModel):

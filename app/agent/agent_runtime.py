@@ -151,9 +151,25 @@ class AgentRuntime:
         contents = []
         for msg in req.messages:
             role = "model" if msg.role in ("model", "assistant") else "user"
+            parts = []
+            if msg.image:
+                match = re.match(r"^data:(image/\w+);base64,(.+)$", msg.image)
+                if match:
+                    mime_type, b64_data = match.group(1), match.group(2)
+                    parts.append({
+                        "inline_data": {
+                            "mime_type": mime_type,
+                            "data": b64_data
+                        }
+                    })
+            if msg.content:
+                parts.append({"text": msg.content})
+            elif not parts:
+                parts.append({"text": ""})
+
             contents.append({
                 "role": role,
-                "parts": [{"text": msg.content}]
+                "parts": parts
             })
 
         if not contents:
