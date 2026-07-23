@@ -312,7 +312,20 @@ class AgentRuntime:
         except Exception:
             pass
 
-        thinking_lines.append("Đã cập nhật trạng thái thời gian thực của Servers & Taskboard vào chỉ thị hệ thống.")
+        # Check if user message warrants real-time web search via Brave Search
+        search_keywords = ["tìm", "search", "tra cứu", "thời tiết", "tin tức", "mới nhất", "hôm nay", "giá", "sự kiện", "bài báo", "cập nhật"]
+        if last_user_msg and any(kw in last_user_msg.lower() for kw in search_keywords):
+            try:
+                from app.services.brave_search import brave_search
+                thinking_lines.append(f"🔍 [Brave Search Engine] Đang thực hiện tìm kiếm web thời gian thực cho: '{last_user_msg[:50]}'...")
+                s_results = await brave_search.search(last_user_msg, count=5)
+                if s_results:
+                    search_str = brave_search.format_results_for_llm(s_results)
+                    system_instruction += f"\n\n{search_str}\n\nLƯU Ý: Hãy sử dụng thông tin kết quả tìm kiếm thời gian thực (Brave Search) ở trên để tổng hợp câu trả lời chuẩn xác, cập nhật và dẫn nguồn link thực tế nếu phù hợp."
+                    thinking_lines.append(f"✅ [Brave Search] Đã lấy thành công {len(s_results)} kết quả web thực tế và nạp vào LLM.")
+            except Exception as se:
+                logger.warning(f"Brave Search integration error: {se}")
+
         thinking_lines.append("Gửi toàn bộ ngữ cảnh và lịch sử trò chuyện sang mô hình Gemini để suy nghĩ phản hồi...")
         thinking_text = "\n".join(thinking_lines)
 
@@ -455,12 +468,17 @@ class AgentRuntime:
         topic = req.topic or "tech-news"
         custom_topic = req.customTopic or f"Công nghệ AI, Máy chủ & Android năm {today_year}"
 
+        from app.services.brave_search import brave_search
+        b_results = await brave_search.search(query=custom_topic, count=5)
+        search_ctx = brave_search.format_results_for_llm(b_results)
+
         prompt = (
-            f"{time_ctx}\n"
+            f"{time_ctx}\n\n"
+            f"{search_ctx}\n\n"
             f"Bạn là hệ thống điểm tin công nghệ tự động thời gian thực cho Aegis Assistant tại Việt Nam.\n"
-            f"Nhiệm vụ: Hãy tìm kiếm và tổng hợp 3 tin tức công nghệ/hệ thống MỚI NHẤT mới cập nhật tính tới ngày {today_date} về chủ đề: '{custom_topic}'.\n\n"
+            f"Nhiệm vụ: Dựa trên kết quả tìm kiếm thời gian thực (Brave Search) ở trên, hãy tổng hợp 3 tin tức MỚI NHẤT tính tới ngày {today_date} về chủ đề: '{custom_topic}'.\n\n"
             f"YÊU CẦU THỜI GIAN & ĐỊNH DẠNG:\n"
-            f"1. Tuyệt đối không lấy bài báo hoặc sự kiện cũ từ những năm trước.\n"
+            f"1. Sử dụng dữ liệu thực tế từ Brave Search, trích dẫn đúng `sourceUrl` thực tế từ bài viết tìm kiếm được.\n"
             f"2. Trả về duy nhất 1 JSON Array gồm đúng 3 JSON Object có cấu trúc chính xác sau:\n"
             f"[\n"
             f"  {{\n"
@@ -468,7 +486,7 @@ class AgentRuntime:
             f'    "description": "Tóm tắt ngắn 1-2 câu về sự kiện mới.",\n'
             f'    "category": "news",\n'
             f'    "contentDetail": "Chi tiết tin tức 2-3 đoạn văn bản Markdown tổng hợp diễn biến mới nhất.",\n'
-            f'    "sourceUrl": "https://news.google.com"\n'
+            f'    "sourceUrl": "Link URL thực tế từ kết quả tìm kiếm Brave Search"\n'
             f"  }}\n"
             f"]\n"
             f"Chú ý: Trong các chuỗi text JSON, không dùng ký tự xuống dòng trực tiếp mà dùng \\n."
@@ -478,10 +496,10 @@ class AgentRuntime:
         
         raw_output = await self.gemini.generate_content(
             contents=contents,
-            system_instruction=f"Bạn là AI chuyên gia tổng hợp tin tức công nghệ thời gian thực tại Việt Nam ngày {today_date}. Trả về JSON array hợp lệ 100%.",
+            system_instruction=f"Bạn là AI chuyên gia tổng hợp tin tức từ kết quả Brave Search tại Việt Nam ngày {today_date}. Trả về JSON array hợp lệ 100%.",
             temperature=0.4,
-            google_search_grounding=True,
-            json_mode=False,  # Keep search grounding enabled for live news search
+            google_search_grounding=False,
+            json_mode=False,
             max_retries_per_model=3
         )
 

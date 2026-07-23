@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.1-flash-lite"
     
+    # Brave Search API Key
+    brave_search_api_key: str = ""
+
     # Database
     database_url: str = "sqlite:///./aegis.db"
 
