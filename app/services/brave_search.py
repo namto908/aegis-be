@@ -26,8 +26,13 @@ class BraveSearchService:
             "Accept-Encoding": "gzip",
             "X-Subscription-Token": api_key
         }
+        # Sanitize and truncate query for Brave Search API limits (max 180 chars / 20 words)
+        clean_q = " ".join(query.strip().split()[:20])[:180]
+        if not clean_q:
+            return []
+
         params = {
-            "q": query,
+            "q": clean_q,
             "count": min(count, 10)
         }
 
