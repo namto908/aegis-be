@@ -59,6 +59,8 @@ class ChatMessageDB(Base):
     role = Column(String, nullable=False)  # user, model
     content = Column(Text, default="")
     image = Column(Text, nullable=True)
+    file = Column(Text, nullable=True)
+    fileName = Column(String, nullable=True)
     timestamp = Column(String, nullable=False)
     created_at = Column(String, nullable=False)
 

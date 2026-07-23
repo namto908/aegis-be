@@ -172,12 +172,24 @@ class AgentRuntime:
         contents = []
         last_user_msg = ""
         last_user_img = None
+        last_user_file = None
+        last_user_fileName = None
 
         for msg in req.messages:
             role = "model" if msg.role in ("model", "assistant") else "user"
             parts = []
             if msg.image:
                 match = re.match(r"^data:(image/\w+);base64,(.+)$", msg.image)
+                if match:
+                    mime_type, b64_data = match.group(1), match.group(2)
+                    parts.append({
+                        "inline_data": {
+                            "mime_type": mime_type,
+                            "data": b64_data
+                        }
+                    })
+            if msg.file:
+                match = re.match(r"^data:([^;]+);base64,(.+)$", msg.file)
                 if match:
                     mime_type, b64_data = match.group(1), match.group(2)
                     parts.append({
@@ -199,6 +211,8 @@ class AgentRuntime:
             if role == "user":
                 last_user_msg = msg.content or ""
                 last_user_img = msg.image
+                last_user_file = msg.file
+                last_user_fileName = msg.fileName
 
         if not contents:
             contents = [{"role": "user", "parts": [{"text": "Xin chào Trợ lý Aegis!"}]}]
@@ -220,12 +234,14 @@ class AgentRuntime:
             iso_now = datetime.now().isoformat()
 
             # Save latest user message if non-empty
-            if last_user_msg or last_user_img:
+            if last_user_msg or last_user_img or last_user_file:
                 user_db_msg = ChatMessageDB(
                     id=f"msg_user_{int(time.time()*1000)}",
                     role="user",
                     content=last_user_msg,
                     image=last_user_img,
+                    file=last_user_file,
+                    fileName=last_user_fileName,
                     timestamp=now_str,
                     created_at=iso_now
                 )
@@ -237,6 +253,8 @@ class AgentRuntime:
                 role="model",
                 content=response_text,
                 image=None,
+                file=None,
+                fileName=None,
                 timestamp=now_str,
                 created_at=iso_now
             )

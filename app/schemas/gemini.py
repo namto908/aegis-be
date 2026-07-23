@@ -41,6 +41,8 @@ class ChatMessage(BaseModel):
     role: str  # "user" or "model" or "assistant"
     content: str
     image: Optional[str] = None
+    file: Optional[str] = None
+    fileName: Optional[str] = None
 
 
 class ChatRequest(BaseModel):
@@ -72,6 +74,8 @@ class ChatMessageItem(BaseModel):
     role: str
     content: str
     image: Optional[str] = None
+    file: Optional[str] = None
+    fileName: Optional[str] = None
     timestamp: str
     created_at: str
 
