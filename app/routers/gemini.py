@@ -90,6 +90,11 @@ def create_or_update_user_memory(body: UserMemoryCreateRequest, db: Session = De
     Manually creates or updates a Hermes user memory item.
     """
     iso_now = datetime.now().isoformat()
+    
+    # Sync to Markdown file
+    from app.agent.agent_runtime import _sync_to_markdown_file
+    _sync_to_markdown_file(body.category or "preference", body.key, body.value)
+
     existing = db.query(UserMemoryDB).filter(UserMemoryDB.key == body.key).first()
     if existing:
         existing.value = body.value
@@ -122,6 +127,11 @@ def delete_user_memory(memory_id: str, db: Session = Depends(get_db)):
     mem = db.query(UserMemoryDB).filter(UserMemoryDB.id == memory_id).first()
     if not mem:
         raise HTTPException(status_code=404, detail="Memory item not found")
+    
+    # Sync to Markdown file
+    from app.agent.agent_runtime import _delete_from_markdown_file
+    _delete_from_markdown_file(mem.key)
+
     db.delete(mem)
     db.commit()
     return {"message": "Memory deleted successfully"}

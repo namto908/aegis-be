@@ -1,4 +1,5 @@
 import re
+import os
 import json
 import time
 import logging
@@ -10,6 +11,68 @@ from app.agent.gemini_client import gemini_client
 from app.agent.tools import analyze_task_health, analyze_server_health
 
 logger = logging.getLogger(__name__)
+
+
+def _sync_to_markdown_file(category: str, key: str, value: str):
+    try:
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        memories_dir = os.path.join(base_dir, "memories")
+        user_md_path = os.path.join(memories_dir, "USER.md")
+        memory_md_path = os.path.join(memories_dir, "MEMORY.md")
+
+        if not os.path.exists(memories_dir):
+            os.makedirs(memories_dir, exist_ok=True)
+
+        target_file = memory_md_path if category in ("tech_stack", "habit") else user_md_path
+
+        if not os.path.exists(target_file):
+            if target_file == user_md_path:
+                with open(target_file, "w", encoding="utf-8") as f:
+                    f.write("# Hồ sơ Chủ nhân (USER.md)\n\nTệp tin này lưu trữ các đặc điểm cá nhân, vai trò, sở thích và chỉ thị riêng của chủ nhân.\n\n## Thông tin chung\n- Tên: Nam\n- Vai trò: AI Developer & Security Expert\n\n## Chỉ thị phong cách làm việc\n")
+            else:
+                with open(target_file, "w", encoding="utf-8") as f:
+                    f.write("# Chỉ thị Công nghệ & Quy tắc Dự án (MEMORY.md)\n\nTệp tin này lưu trữ môi trường công nghệ, quy tắc dự án và các bài học kinh nghiệm.\n\n## Môi trường & Tech Stack\n- OS: Linux Ubuntu\n- Backend: Python FastAPI, SQLite\n- Frontend: React TypeScript, Tailwind CSS\n- Native: Capacitor (Android)\n\n## Hướng dẫn dự án & Server\n")
+
+        with open(target_file, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        escaped_key = re.escape(key)
+        pattern = rf"(?i)-\s*{escaped_key}\s*:\s*[^\n]+"
+
+        if re.search(pattern, content):
+            new_content = re.sub(pattern, f"- {key}: {value}", content)
+        else:
+            if not content.endswith("\n"):
+                content += "\n"
+            new_content = content + f"- {key}: {value}\n"
+
+        with open(target_file, "w", encoding="utf-8") as f:
+            f.write(new_content)
+        logger.info(f"🧠 [Hermes Memory] Synced '{key}' to Markdown file '{os.path.basename(target_file)}'")
+    except Exception as e:
+        logger.error(f"Failed to sync memory to Markdown file: {e}")
+
+
+def _delete_from_markdown_file(key: str):
+    try:
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        memories_dir = os.path.join(base_dir, "memories")
+        user_md_path = os.path.join(memories_dir, "USER.md")
+        memory_md_path = os.path.join(memories_dir, "MEMORY.md")
+
+        for target_file in [user_md_path, memory_md_path]:
+            if os.path.exists(target_file):
+                with open(target_file, "r", encoding="utf-8") as f:
+                    content = f.read()
+                escaped_key = re.escape(key)
+                pattern = rf"(?i)-\s*{escaped_key}\s*:\s*[^\n]+\n?"
+                if re.search(pattern, content):
+                    new_content = re.sub(pattern, "", content)
+                    with open(target_file, "w", encoding="utf-8") as f:
+                        f.write(new_content)
+                    logger.info(f"🧠 [Hermes Memory] Deleted key '{key}' from Markdown file '{os.path.basename(target_file)}'")
+    except Exception as e:
+        logger.error(f"Failed to delete memory from Markdown file: {e}")
 
 
 def _get_current_time_context() -> str:
@@ -148,24 +211,39 @@ class AgentRuntime:
         time_ctx = _get_current_time_context()
         base_instruction = req.systemInstruction or "Bạn là Aegis, trợ lý ảo cá nhân..."
 
-        # Fetch active Hermes User Memories from DB
+        # Read USER.md & MEMORY.md directly (Hermes memory engine architecture)
         memory_ctx = ""
         try:
-            from app.db import SessionLocal
-            from app.models.db_models import UserMemoryDB, ChatMessageDB
-            db = SessionLocal()
-            memories = db.query(UserMemoryDB).all()
-            if memories:
-                memory_lines = [f"- [{m.category.upper()}] {m.key}: {m.value}" for m in memories]
-                memory_ctx = (
-                    "=== BỘ NHỚ LÝ LỊCH VỀ CHỦ NHÂN (HERMES MEMORY STORE) ===\n"
-                    "Hệ thống đã tự động ghi nhớ các điểm quan trọng sau về chủ nhân qua các cuộc trò chuyện trước:\n"
-                    + "\n".join(memory_lines) + "\n"
-                    "Hãy vận dụng linh hoạt bộ nhớ trên để trả lời tự nhiên, thấu hiểu cá nhân hóa chủ nhân mà không cần chủ nhân nhắc lại.\n"
-                )
-            db.close()
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            memories_dir = os.path.join(base_dir, "memories")
+            user_md_path = os.path.join(memories_dir, "USER.md")
+            memory_md_path = os.path.join(memories_dir, "MEMORY.md")
+
+            if not os.path.exists(memories_dir):
+                os.makedirs(memories_dir, exist_ok=True)
+            if not os.path.exists(user_md_path):
+                with open(user_md_path, "w", encoding="utf-8") as f:
+                    f.write("# Hồ sơ Chủ nhân (USER.md)\n\nTệp tin này lưu trữ các đặc điểm cá nhân, vai trò, sở thích và chỉ thị riêng của chủ nhân.\n\n## Thông tin chung\n- Tên: Nam\n- Vai trò: AI Developer & Security Expert\n\n## Chỉ thị phong cách làm việc\n")
+            if not os.path.exists(memory_md_path):
+                with open(memory_md_path, "w", encoding="utf-8") as f:
+                    f.write("# Chỉ thị Công nghệ & Quy tắc Dự án (MEMORY.md)\n\nTệp tin này lưu trữ môi trường công nghệ, quy tắc dự án và các bài học kinh nghiệm.\n\n## Môi trường & Tech Stack\n- OS: Linux Ubuntu\n- Backend: Python FastAPI, SQLite\n- Frontend: React TypeScript, Tailwind CSS\n- Native: Capacitor (Android)\n\n## Hướng dẫn dự án & Server\n")
+
+            user_md_content = ""
+            memory_md_content = ""
+            with open(user_md_path, "r", encoding="utf-8") as f:
+                user_md_content = f.read().strip()
+            with open(memory_md_path, "r", encoding="utf-8") as f:
+                memory_md_content = f.read().strip()
+
+            memory_ctx = (
+                "=== BỘ NHỚ LÝ LỊCH VỀ CHỦ NHÂN (HERMES MEMORY ENGINE) ===\n"
+                "Dưới đây là các tệp thông tin và quy tắc đã ghi nhớ (đọc trực tiếp từ USER.md và MEMORY.md):\n\n"
+                f"--- USER PROFILE (USER.md) ---\n{user_md_content}\n\n"
+                f"--- CONVENTIONS & LESSONS (MEMORY.md) ---\n{memory_md_content}\n\n"
+                "Hãy vận dụng linh hoạt bộ nhớ trên để tự động cá nhân hóa câu trả lời và làm việc thấu hiểu chủ nhân.\n"
+            )
         except Exception as e:
-            logger.warning(f"Could not load Hermes User Memories: {e}")
+            logger.warning(f"Could not load Markdown memory files (USER.md/MEMORY.md): {e}")
 
         system_instruction = f"{base_instruction}\n\n{memory_ctx}\n\n{time_ctx}"
 
@@ -310,7 +388,10 @@ class AgentRuntime:
                 mem_val = parsed["value"].strip()
                 category = parsed.get("category", "preference").strip()
 
-                # Check if memory key exists
+                # Sync to Markdown file
+                _sync_to_markdown_file(category, mem_key, mem_val)
+
+                # Check if memory key exists in DB
                 existing = db.query(UserMemoryDB).filter(UserMemoryDB.key == mem_key).first()
                 iso_now = datetime.now().isoformat()
                 if existing:
