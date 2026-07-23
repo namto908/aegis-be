@@ -9,14 +9,15 @@ from app.schemas.gemini import BriefingRequest, ChatRequest, NewsRequest, NewsRe
 from app.schemas.notification import NotificationItem
 from app.agent.gemini_client import gemini_client
 from app.agent.tools import analyze_task_health, analyze_server_health
+from app.models.db_models import UserDB
 
 logger = logging.getLogger(__name__)
 
 
-def _sync_to_markdown_file(category: str, key: str, value: str):
+def _sync_to_markdown_file(category: str, key: str, value: str, user_email: str):
     try:
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        memories_dir = os.path.join(base_dir, "memories")
+        memories_dir = os.path.join(base_dir, "memories", user_email)
         user_md_path = os.path.join(memories_dir, "USER.md")
         memory_md_path = os.path.join(memories_dir, "MEMORY.md")
 
@@ -53,10 +54,10 @@ def _sync_to_markdown_file(category: str, key: str, value: str):
         logger.error(f"Failed to sync memory to Markdown file: {e}")
 
 
-def _delete_from_markdown_file(key: str):
+def _delete_from_markdown_file(key: str, user_email: str):
     try:
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        memories_dir = os.path.join(base_dir, "memories")
+        memories_dir = os.path.join(base_dir, "memories", user_email)
         user_md_path = os.path.join(memories_dir, "USER.md")
         memory_md_path = os.path.join(memories_dir, "MEMORY.md")
 
@@ -203,7 +204,7 @@ class AgentRuntime:
         )
         return briefing_text
 
-    async def handle_chat(self, req: ChatRequest) -> str:
+    async def handle_chat(self, req: ChatRequest, user: UserDB) -> tuple[str, str]:
         """
         Handles multi-turn AI chatbot conversation with real-time Vietnam context,
         persists conversation history, and dynamically leverages Hermes Memory Engine.
@@ -215,7 +216,7 @@ class AgentRuntime:
         memory_ctx = ""
         try:
             base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            memories_dir = os.path.join(base_dir, "memories")
+            memories_dir = os.path.join(base_dir, "memories", user.email)
             user_md_path = os.path.join(memories_dir, "USER.md")
             memory_md_path = os.path.join(memories_dir, "MEMORY.md")
 
@@ -300,8 +301,8 @@ class AgentRuntime:
         
         try:
             base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            user_md_path = os.path.join(base_dir, "memories", "USER.md")
-            memory_md_path = os.path.join(base_dir, "memories", "MEMORY.md")
+            user_md_path = os.path.join(base_dir, "memories", user.email, "USER.md")
+            memory_md_path = os.path.join(base_dir, "memories", user.email, "MEMORY.md")
             
             if os.path.exists(user_md_path):
                 thinking_lines.append("Đọc bộ nhớ chủ nhân (USER.md): Đã nạp đặc điểm và phong cách giao tiếp cá nhân.")
@@ -334,6 +335,7 @@ class AgentRuntime:
             if last_user_msg or last_user_img or last_user_file:
                 user_db_msg = ChatMessageDB(
                     id=f"msg_user_{int(time.time()*1000)}",
+                    user_id=user.id,
                     role="user",
                     content=last_user_msg,
                     image=last_user_img,
@@ -348,6 +350,7 @@ class AgentRuntime:
             # Save model response
             model_db_msg = ChatMessageDB(
                 id=f"msg_model_{int(time.time()*1000)}",
+                user_id=user.id,
                 role="model",
                 content=response_text,
                 image=None,
@@ -364,14 +367,14 @@ class AgentRuntime:
             # Trigger background memory extraction loop (Hermes Learning)
             if last_user_msg and len(last_user_msg.strip()) > 5:
                 import asyncio
-                asyncio.create_task(self._extract_and_learn_memories(last_user_msg, response_text))
+                asyncio.create_task(self._extract_and_learn_memories(last_user_msg, response_text, user))
 
         except Exception as e:
             logger.error(f"Error persisting chat history: {e}")
 
         return response_text, thinking_text
 
-    async def _extract_and_learn_memories(self, user_msg: str, model_reply: str):
+    async def _extract_and_learn_memories(self, user_msg: str, model_reply: str, user: UserDB):
         """
         Hermes Learning Engine: Analyzes user conversation turns to extract
         permanent facts, preferences, technology stacks, or user habits.
@@ -410,10 +413,13 @@ class AgentRuntime:
                 category = parsed.get("category", "preference").strip()
 
                 # Sync to Markdown file
-                _sync_to_markdown_file(category, mem_key, mem_val)
+                _sync_to_markdown_file(category, mem_key, mem_val, user.email)
 
-                # Check if memory key exists in DB
-                existing = db.query(UserMemoryDB).filter(UserMemoryDB.key == mem_key).first()
+                # Check if memory key exists in DB for this user
+                existing = db.query(UserMemoryDB).filter(
+                    UserMemoryDB.key == mem_key,
+                    UserMemoryDB.user_id == user.id
+                ).first()
                 iso_now = datetime.now().isoformat()
                 if existing:
                     existing.value = mem_val
@@ -422,6 +428,7 @@ class AgentRuntime:
                 else:
                     new_mem = UserMemoryDB(
                         id=f"mem_{int(time.time()*1000)}",
+                        user_id=user.id,
                         category=category,
                         key=mem_key,
                         value=mem_val,

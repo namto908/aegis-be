@@ -2,7 +2,8 @@ from typing import List
 from fastapi import APIRouter, HTTPException, Request, Depends, status
 from sqlalchemy.orm import Session
 from app.db import get_db
-from app.models.db_models import ChatMessageDB, UserMemoryDB
+from app.models.db_models import ChatMessageDB, UserMemoryDB, UserDB
+from app.auth import get_current_user
 from app.schemas.gemini import (
     BriefingRequest, BriefingResponse,
     ChatRequest, ChatResponse,
@@ -17,7 +18,11 @@ router = APIRouter(prefix="/api/gemini", tags=["Gemini AI"])
 
 
 @router.post("/briefing", response_model=BriefingResponse)
-async def create_briefing(request: Request, body: BriefingRequest):
+async def create_briefing(
+    request: Request,
+    body: BriefingRequest,
+    current_user: UserDB = Depends(get_current_user)
+):
     """
     POST /api/gemini/briefing
     Generates smart daily briefing for the user based on active tasks, servers, and notifications.
@@ -36,7 +41,11 @@ async def create_briefing(request: Request, body: BriefingRequest):
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat_with_assistant(request: Request, body: ChatRequest):
+async def chat_with_assistant(
+    request: Request,
+    body: ChatRequest,
+    current_user: UserDB = Depends(get_current_user)
+):
     """
     POST /api/gemini/chat
     Multi-turn chatbot assistant conversation.
@@ -45,7 +54,7 @@ async def chat_with_assistant(request: Request, body: ChatRequest):
         raise HTTPException(status_code=499, detail="Client closed request before completion.")
 
     try:
-        text, thinking = await agent_runtime.handle_chat(body)
+        text, thinking = await agent_runtime.handle_chat(body, current_user)
         return ChatResponse(text=text, thinking=thinking)
     except Exception as e:
         raise HTTPException(
@@ -55,47 +64,62 @@ async def chat_with_assistant(request: Request, body: ChatRequest):
 
 
 @router.get("/history", response_model=List[ChatMessageItem])
-def get_chat_history(db: Session = Depends(get_db)):
+def get_chat_history(
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
     """
     GET /api/gemini/history
     Fetches saved chat message history.
     """
-    return db.query(ChatMessageDB).order_by(ChatMessageDB.created_at.asc()).all()
+    return db.query(ChatMessageDB).filter(ChatMessageDB.user_id == current_user.id).order_by(ChatMessageDB.created_at.asc()).all()
 
 
 @router.delete("/history")
-def clear_chat_history(db: Session = Depends(get_db)):
+def clear_chat_history(
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
     """
     DELETE /api/gemini/history
     Clears all saved chat history.
     """
-    db.query(ChatMessageDB).delete()
+    db.query(ChatMessageDB).filter(ChatMessageDB.user_id == current_user.id).delete()
     db.commit()
     return {"message": "Chat history cleared successfully"}
 
 
 @router.get("/memories", response_model=List[UserMemoryItem])
-def get_user_memories(db: Session = Depends(get_db)):
+def get_user_memories(
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
     """
     GET /api/gemini/memories
     Fetches all Hermes Agent learned user memories.
     """
-    return db.query(UserMemoryDB).order_by(UserMemoryDB.updated_at.desc()).all()
+    return db.query(UserMemoryDB).filter(UserMemoryDB.user_id == current_user.id).order_by(UserMemoryDB.updated_at.desc()).all()
 
 
 @router.post("/memories", response_model=UserMemoryItem)
-def create_or_update_user_memory(body: UserMemoryCreateRequest, db: Session = Depends(get_db)):
+def create_or_update_user_memory(
+    body: UserMemoryCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
     """
     POST /api/gemini/memories
     Manually creates or updates a Hermes user memory item.
     """
     iso_now = datetime.now().isoformat()
     
-    # Sync to Markdown file
     from app.agent.agent_runtime import _sync_to_markdown_file
-    _sync_to_markdown_file(body.category or "preference", body.key, body.value)
+    _sync_to_markdown_file(body.category or "preference", body.key, body.value, current_user.email)
 
-    existing = db.query(UserMemoryDB).filter(UserMemoryDB.key == body.key).first()
+    existing = db.query(UserMemoryDB).filter(
+        UserMemoryDB.key == body.key,
+        UserMemoryDB.user_id == current_user.id
+    ).first()
     if existing:
         existing.value = body.value
         existing.category = body.category or existing.category
@@ -106,6 +130,7 @@ def create_or_update_user_memory(body: UserMemoryCreateRequest, db: Session = De
 
     new_mem = UserMemoryDB(
         id=f"mem_{int(time.time()*1000)}",
+        user_id=current_user.id,
         category=body.category or "preference",
         key=body.key,
         value=body.value,
@@ -119,18 +144,24 @@ def create_or_update_user_memory(body: UserMemoryCreateRequest, db: Session = De
 
 
 @router.delete("/memories/{memory_id}")
-def delete_user_memory(memory_id: str, db: Session = Depends(get_db)):
+def delete_user_memory(
+    memory_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
     """
     DELETE /api/gemini/memories/{memory_id}
     Deletes a specific user memory item.
     """
-    mem = db.query(UserMemoryDB).filter(UserMemoryDB.id == memory_id).first()
+    mem = db.query(UserMemoryDB).filter(
+        UserMemoryDB.id == memory_id,
+        UserMemoryDB.user_id == current_user.id
+    ).first()
     if not mem:
         raise HTTPException(status_code=404, detail="Memory item not found")
     
-    # Sync to Markdown file
     from app.agent.agent_runtime import _delete_from_markdown_file
-    _delete_from_markdown_file(mem.key)
+    _delete_from_markdown_file(mem.key, current_user.email)
 
     db.delete(mem)
     db.commit()
@@ -138,7 +169,11 @@ def delete_user_memory(memory_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/news", response_model=NewsResponse)
-async def fetch_news_intelligence(request: Request, body: NewsRequest):
+async def fetch_news_intelligence(
+    request: Request,
+    body: NewsRequest,
+    current_user: UserDB = Depends(get_current_user)
+):
     """
     POST /api/gemini/news
     Generates tech news items grounded with Google Search Grounding.

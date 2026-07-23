@@ -117,11 +117,33 @@ def seed_initial_data():
         db.close()
 
 
+def run_db_migrations():
+    """Runs manual migrations on SQLite database to add columns if they do not exist"""
+    from sqlalchemy import text
+    db = SessionLocal()
+    try:
+        tables_to_migrate = ["tasks", "servers", "notifications", "assistant_config", "chat_messages", "user_memories"]
+        for table in tables_to_migrate:
+            try:
+                db.execute(text(f"ALTER TABLE {table} ADD COLUMN user_id TEXT;"))
+                logger.info(f"Added column user_id to table {table}")
+            except Exception:
+                pass
+        db.commit()
+    except Exception as e:
+        logger.error(f"Migration error: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting Aegis Assistant Backend...")
     # Create DB tables
     Base.metadata.create_all(bind=engine)
+    # Run user_id migrations
+    run_db_migrations()
     # Seed initial data
     seed_initial_data()
     yield
