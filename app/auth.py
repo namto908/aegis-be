@@ -104,7 +104,7 @@ async def get_current_user(
                 prompt="Bạn là Aegis, trợ lý ảo cá nhân đa năng rành công nghệ, tính cách lôi cuốn, tinh tế và luôn đặt bảo mật lên hàng đầu. Hãy trả lời ngắn gọn, thiết thực, có cấu trúc sử dụng Markdown nhẹ bằng Tiếng Việt.",
                 avatarUrl="",
                 themeColor="slate",
-                apiBaseUrl=f"http://localhost:{settings.port}"
+                apiBaseUrl=""
             )
             db.add(cfg)
             db.commit()
