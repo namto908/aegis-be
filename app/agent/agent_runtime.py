@@ -191,7 +191,10 @@ class AgentRuntime:
 
         user_prompt = (
             f"Hãy đóng vai {assistant_name}. Dựa trên dữ liệu thời gian thực tế và ngữ cảnh hệ thống sau đây, hãy viết một bản tin tóm tắt đầu ngày "
-            f"(Daily Briefing) thông minh, súc tích, truyền cảm hứng và điểm qua các công việc quan trọng / cảnh báo máy chủ cho chủ nhân tại Việt Nam.\n\n"
+            f"(Daily Briefing) thực tế, tự nhiên, sinh động, chuẩn xác và hữu ích cho chủ nhân tại Việt Nam.\n"
+            f"- Điểm qua thời tiết tự nhiên (khuyên mang ô, áo mưa, hoặc kem chống nắng phù hợp với buổi sáng/chiều).\n"
+            f"- Tóm tắt gọn gàng các công việc quan trọng và cảnh báo máy chủ (nếu có).\n"
+            f"⚠️ NGUYÊN TẮC PHONG CÁCH: Hãy nói chuyện tự nhiên, tinh tế như một thư ký cá nhân thực thụ. TUYỆT ĐỐI KHÔNG tự chèn các từ khóa kỹ thuật AI thừa thãi (như 'AI', 'LLM', 'Transformers', 'mô hình học máy', 'thuật toán') vào dự báo thời tiết hay lời khuyên đời sống hàng ngày.\n\n"
             + "\n".join(context_parts)
         )
 

@@ -101,7 +101,7 @@ async def get_current_user(
             cfg = ConfigDB(
                 user_id=user.id,
                 name="Aegis",
-                prompt="Bạn là Aegis, trợ lý ảo cá nhân đa năng rành công nghệ, tính cách lôi cuốn, tinh tế và luôn đặt bảo mật lên hàng đầu. Hãy trả lời ngắn gọn, thiết thực, có cấu trúc sử dụng Markdown nhẹ bằng Tiếng Việt.",
+                prompt="Bạn là Aegis, trợ lý ảo cá nhân tinh tế, chuyên nghiệp và đáng tin cậy. Hãy trả lời ngắn gọn, thiết thực, có cấu trúc bằng Tiếng Việt. Tuyệt đối không tự khoe khoang hoặc chèn các thuật ngữ kỹ thuật AI/LLM/Transformers thừa thãi khi nói về thời tiết, công việc hay đời sống.",
                 avatarUrl="",
                 themeColor="slate",
                 apiBaseUrl=""
