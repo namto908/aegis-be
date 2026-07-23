@@ -190,11 +190,9 @@ class AgentRuntime:
             context_parts.append(f"\n- Thông báo chưa đọc: {unread}/{len(notifications)}")
 
         user_prompt = (
-            f"Hãy đóng vai {assistant_name}. Dựa trên dữ liệu thời gian thực tế và ngữ cảnh hệ thống sau đây, hãy viết một bản tin tóm tắt đầu ngày "
-            f"(Daily Briefing) thực tế, tự nhiên, sinh động, chuẩn xác và hữu ích cho chủ nhân tại Việt Nam.\n"
-            f"- Điểm qua thời tiết tự nhiên (khuyên mang ô, áo mưa, hoặc kem chống nắng phù hợp với buổi sáng/chiều).\n"
-            f"- Tóm tắt gọn gàng các công việc quan trọng và cảnh báo máy chủ (nếu có).\n"
-            f"⚠️ NGUYÊN TẮC PHONG CÁCH: Hãy nói chuyện tự nhiên, tinh tế như một thư ký cá nhân thực thụ. TUYỆT ĐỐI KHÔNG tự chèn các từ khóa kỹ thuật AI thừa thãi (như 'AI', 'LLM', 'Transformers', 'mô hình học máy', 'thuật toán') vào dự báo thời tiết hay lời khuyên đời sống hàng ngày.\n\n"
+            f"Hãy đóng vai {assistant_name}. Hãy tổng hợp một bản tin tóm tắt (Briefing) ngắn gọn, chuẩn xác và đúng trọng tâm dựa trên dữ liệu ngữ cảnh sau đây.\n"
+            f"- Tập trung trực tiếp vào nội dung các công việc (Tasks), máy chủ (Servers), thông báo (Notifications) và các tác vụ do người dùng yêu cầu.\n"
+            f"- Trình bày tự nhiên, linh hoạt, đi thẳng vào vấn đề chính mà không lan man sang các chủ đề không liên quan hoặc tự chèn từ khóa kỹ thuật thừa thãi.\n\n"
             + "\n".join(context_parts)
         )
 
