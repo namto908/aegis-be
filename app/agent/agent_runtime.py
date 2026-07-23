@@ -321,7 +321,12 @@ class AgentRuntime:
                 s_results = await brave_search.search(last_user_msg, count=5)
                 if s_results:
                     search_str = brave_search.format_results_for_llm(s_results)
-                    system_instruction += f"\n\n{search_str}\n\nLƯU Ý: Hãy sử dụng thông tin kết quả tìm kiếm thời gian thực (Brave Search) ở trên để tổng hợp câu trả lời chuẩn xác, cập nhật và dẫn nguồn link thực tế nếu phù hợp."
+                    system_instruction += (
+                        f"\n\n{search_str}\n\n"
+                        f"⚠️ YÊU CẦU QUAN TRỌNG VỀ NỘI DUNG VÀ DỮ LIỆU:\n"
+                        f"1. Người dùng cần THÔNG TIN CHI TIẾT VÀ DỮ LIỆU THỰC TẾ (ví dụ: nhiệt độ/độ ẩm/sức gió/chỉ số UV 5 ngày tới nếu hỏi thời tiết, nội dung diễn biến/tên repository hot/tính năng mới nếu hỏi tin tức/HackerNews/GitHub), KHÔNG ĐƯỢC chỉ đưa ra tên báo hay danh sách link nguồn tin.\n"
+                        f"2. Hãy đi thẳng vào trình bày chi tiết các số liệu, con số và dữ liệu thu thập được."
+                    )
                     thinking_lines.append(f"✅ [Brave Search] Đã lấy thành công {len(s_results)} kết quả web thực tế và nạp vào LLM.")
             except Exception as se:
                 logger.warning(f"Brave Search integration error: {se}")

@@ -62,19 +62,19 @@ class BraveSearchService:
 
     def format_results_for_llm(self, results: List[Dict[str, Any]]) -> str:
         """
-        Formats search results into a clean string for LLM synthesis.
+        Formats search results into a detailed data string for LLM synthesis.
         """
         if not results:
-            return "Không tìm thấy kết quả tìm kiếm."
+            return "Không tìm thấy dữ liệu tìm kiếm."
 
-        formatted = ["=== KẾT QUẢ TÌM KIẾM THỜI GIAN THỰC (BRAVE SEARCH) ==="]
+        formatted = ["=== DỮ LIỆU THÔNG TIN THỜI GIAN THỰC TỪ BRAVE SEARCH ==="]
         for idx, res in enumerate(results, 1):
-            formatted.append(f"\n[{idx}] {res['title']}")
-            formatted.append(f"    Link: {res['url']}")
-            formatted.append(f"    Mô tả: {res['description']}")
+            formatted.append(f"\n--- DỮ LIỆU MỤC #{idx}: {res['title']} ---")
+            formatted.append(f"Nội dung / Thông số chi tiết: {res['description']}")
             if res.get("extra_snippets"):
-                snippets = " ".join(res["extra_snippets"][:2])
-                formatted.append(f"    Chi tiết: {snippets}")
+                snippets = "\n".join(res["extra_snippets"])
+                formatted.append(f"Chi tiết bổ sung: {snippets}")
+            formatted.append(f"Nguồn tham khảo: {res['url']}")
 
         return "\n".join(formatted)
 
