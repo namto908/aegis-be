@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     app_name: str = "Aegis Assistant Backend"
     app_version: str = "1.0.0"
-    port: int = 3000
+    port: int = 25530
     host: str = "0.0.0.0"
     
     # Gemini AI configuration

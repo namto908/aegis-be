@@ -49,7 +49,7 @@ class ConfigDB(Base):
     prompt = Column(Text, default="Bạn là Aegis, trợ lý ảo cá nhân đa năng...")
     avatarUrl = Column(Text, default="")
     themeColor = Column(String, default="cyan")
-    apiBaseUrl = Column(String, default="http://localhost:3000")
+    apiBaseUrl = Column(String, default="http://localhost:25530")
 
 
 class ChatMessageDB(Base):

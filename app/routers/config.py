@@ -16,7 +16,7 @@ def _get_or_create_config(db: Session) -> ConfigDB:
             prompt="Bạn là Aegis, trợ lý ảo cá nhân...",
             avatarUrl="",
             themeColor="cyan",
-            apiBaseUrl="http://localhost:3000"
+            apiBaseUrl="http://localhost:25530"
         )
         db.add(cfg)
         db.commit()
