@@ -36,6 +36,7 @@ class BraveSearchService:
             "count": min(count, 10)
         }
 
+        logger.info(f"🔍 [Brave Search Engine] Executing web search for: '{clean_q}'...")
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(url, headers=headers, params=params)
@@ -53,6 +54,7 @@ class BraveSearchService:
                         "description": item.get("description", ""),
                         "extra_snippets": item.get("extra_snippets", [])
                     })
+                logger.info(f"✅ [Brave Search Engine] Retreived {len(results)} search results for '{clean_q}'.")
                 return results
         except Exception as e:
             logger.error(f"Exception during Brave Search: {e}")
