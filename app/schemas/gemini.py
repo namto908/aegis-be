@@ -65,3 +65,28 @@ class NewsResponse(BaseModel):
     description: Optional[str] = None
     contentDetail: Optional[str] = None
     sourceUrl: Optional[str] = None
+
+
+class ChatMessageItem(BaseModel):
+    id: str
+    role: str
+    content: str
+    image: Optional[str] = None
+    timestamp: str
+    created_at: str
+
+
+class UserMemoryItem(BaseModel):
+    id: str
+    category: str
+    key: str
+    value: str
+    confidence: float
+    updated_at: str
+
+
+class UserMemoryCreateRequest(BaseModel):
+    category: Optional[str] = "preference"
+    key: str
+    value: str
+

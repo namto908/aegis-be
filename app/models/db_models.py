@@ -50,3 +50,26 @@ class ConfigDB(Base):
     avatarUrl = Column(Text, default="")
     themeColor = Column(String, default="cyan")
     apiBaseUrl = Column(String, default="http://localhost:3000")
+
+
+class ChatMessageDB(Base):
+    __tablename__ = "chat_messages"
+
+    id = Column(String, primary_key=True, index=True)
+    role = Column(String, nullable=False)  # user, model
+    content = Column(Text, default="")
+    image = Column(Text, nullable=True)
+    timestamp = Column(String, nullable=False)
+    created_at = Column(String, nullable=False)
+
+
+class UserMemoryDB(Base):
+    __tablename__ = "user_memories"
+
+    id = Column(String, primary_key=True, index=True)
+    category = Column(String, default="preference")  # preference, fact, habit, tech_stack
+    key = Column(String, nullable=False)
+    value = Column(Text, nullable=False)
+    confidence = Column(Float, default=1.0)
+    updated_at = Column(String, nullable=False)
+

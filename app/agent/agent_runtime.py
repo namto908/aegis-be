@@ -142,13 +142,37 @@ class AgentRuntime:
 
     async def handle_chat(self, req: ChatRequest) -> str:
         """
-        Handles multi-turn AI chatbot conversation with real-time Vietnam context.
+        Handles multi-turn AI chatbot conversation with real-time Vietnam context,
+        persists conversation history, and dynamically leverages Hermes Memory Engine.
         """
         time_ctx = _get_current_time_context()
         base_instruction = req.systemInstruction or "Bạn là Aegis, trợ lý ảo cá nhân..."
-        system_instruction = f"{base_instruction}\n\n{time_ctx}"
+
+        # Fetch active Hermes User Memories from DB
+        memory_ctx = ""
+        try:
+            from app.db import SessionLocal
+            from app.models.db_models import UserMemoryDB, ChatMessageDB
+            db = SessionLocal()
+            memories = db.query(UserMemoryDB).all()
+            if memories:
+                memory_lines = [f"- [{m.category.upper()}] {m.key}: {m.value}" for m in memories]
+                memory_ctx = (
+                    "=== BỘ NHỚ LÝ LỊCH VỀ CHỦ NHÂN (HERMES MEMORY STORE) ===\n"
+                    "Hệ thống đã tự động ghi nhớ các điểm quan trọng sau về chủ nhân qua các cuộc trò chuyện trước:\n"
+                    + "\n".join(memory_lines) + "\n"
+                    "Hãy vận dụng linh hoạt bộ nhớ trên để trả lời tự nhiên, thấu hiểu cá nhân hóa chủ nhân mà không cần chủ nhân nhắc lại.\n"
+                )
+            db.close()
+        except Exception as e:
+            logger.warning(f"Could not load Hermes User Memories: {e}")
+
+        system_instruction = f"{base_instruction}\n\n{memory_ctx}\n\n{time_ctx}"
 
         contents = []
+        last_user_msg = ""
+        last_user_img = None
+
         for msg in req.messages:
             role = "model" if msg.role in ("model", "assistant") else "user"
             parts = []
@@ -172,6 +196,10 @@ class AgentRuntime:
                 "parts": parts
             })
 
+            if role == "user":
+                last_user_msg = msg.content or ""
+                last_user_img = msg.image
+
         if not contents:
             contents = [{"role": "user", "parts": [{"text": "Xin chào Trợ lý Aegis!"}]}]
 
@@ -181,7 +209,109 @@ class AgentRuntime:
             temperature=0.7,
             max_retries_per_model=3
         )
+
+        # Persist Chat Messages & Trigger Background Memory Extraction
+        try:
+            from app.db import SessionLocal
+            from app.models.db_models import ChatMessageDB
+            db = SessionLocal()
+
+            now_str = datetime.now().strftime("%H:%M")
+            iso_now = datetime.now().isoformat()
+
+            # Save latest user message if non-empty
+            if last_user_msg or last_user_img:
+                user_db_msg = ChatMessageDB(
+                    id=f"msg_user_{int(time.time()*1000)}",
+                    role="user",
+                    content=last_user_msg,
+                    image=last_user_img,
+                    timestamp=now_str,
+                    created_at=iso_now
+                )
+                db.add(user_db_msg)
+
+            # Save model response
+            model_db_msg = ChatMessageDB(
+                id=f"msg_model_{int(time.time()*1000)}",
+                role="model",
+                content=response_text,
+                image=None,
+                timestamp=now_str,
+                created_at=iso_now
+            )
+            db.add(model_db_msg)
+            db.commit()
+            db.close()
+
+            # Trigger background memory extraction loop (Hermes Learning)
+            if last_user_msg and len(last_user_msg.strip()) > 5:
+                import asyncio
+                asyncio.create_task(self._extract_and_learn_memories(last_user_msg, response_text))
+
+        except Exception as e:
+            logger.error(f"Error persisting chat history: {e}")
+
         return response_text
+
+    async def _extract_and_learn_memories(self, user_msg: str, model_reply: str):
+        """
+        Hermes Learning Engine: Analyzes user conversation turns to extract
+        permanent facts, preferences, technology stacks, or user habits.
+        """
+        try:
+            extraction_prompt = (
+                f"Hãy đóng vai hệ thống phân tích bộ nhớ Hermes Memory cho trợ lý AI Aegis.\n"
+                f"Phân tích tin nhắn của người dùng sau đây:\n"
+                f"người dùng: \"{user_msg}\"\n\n"
+                f"Nhiệm vụ: Tìm xem trong tin nhắn có chứa THÔNG TIN CÁ NHÂN, SỞ THÍCH, MÔI TRƯỜNG CÔNG NGHỆ, THÓI QUEN hoặc NGUYÊN TẮC CẦN GHI NHỚ LÂU DÀI nào của người dùng hay không.\n"
+                f"Nếu CÓ, hãy trả về 1 JSON Object duy nhất có dạng:\n"
+                f'{{\n  "has_memory": true,\n  "category": "preference" hoặc "tech_stack" hoặc "fact" hoặc "habit",\n  "key": "Tên ngắn gọn về đặc điểm",\n  "value": "Mô tả chi tiết bằng Tiếng Việt"\n}}\n'
+                f'Nếu KHÔNG CÓ thông tin cá nhân đáng ghi nhớ lâu dài (ví dụ chỉ hỏi chào hỏi đơn thuần, câu hỏi tức thời), trả về:\n'
+                f'{{\n  "has_memory": false\n}}'
+            )
+
+            contents = [{"role": "user", "parts": [{"text": extraction_prompt}]}]
+            raw_res = await self.gemini.generate_content(
+                contents=contents,
+                system_instruction="Bạn là AI trích xuất bộ nhớ tri thức cá nhân. Trả về JSON duy nhất 100%.",
+                temperature=0.2,
+                json_mode=True,
+                max_retries_per_model=2
+            )
+
+            parsed = _repair_and_parse_json(raw_res)
+            if isinstance(parsed, dict) and parsed.get("has_memory") and parsed.get("key") and parsed.get("value"):
+                from app.db import SessionLocal
+                from app.models.db_models import UserMemoryDB
+                db = SessionLocal()
+                mem_key = parsed["key"].strip()
+                mem_val = parsed["value"].strip()
+                category = parsed.get("category", "preference").strip()
+
+                # Check if memory key exists
+                existing = db.query(UserMemoryDB).filter(UserMemoryDB.key == mem_key).first()
+                iso_now = datetime.now().isoformat()
+                if existing:
+                    existing.value = mem_val
+                    existing.updated_at = iso_now
+                    logger.info(f"🧠 [Hermes Memory] Updated memory '{mem_key}': {mem_val}")
+                else:
+                    new_mem = UserMemoryDB(
+                        id=f"mem_{int(time.time()*1000)}",
+                        category=category,
+                        key=mem_key,
+                        value=mem_val,
+                        confidence=1.0,
+                        updated_at=iso_now
+                    )
+                    db.add(new_mem)
+                    logger.info(f"🧠 [Hermes Memory] Learned new memory '{mem_key}': {mem_val}")
+
+                db.commit()
+                db.close()
+        except Exception as e:
+            logger.warning(f"Error in Hermes memory extraction: {e}")
 
     async def generate_news(self, req: NewsRequest) -> NewsResponse:
         """
