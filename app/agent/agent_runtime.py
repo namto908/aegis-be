@@ -282,10 +282,13 @@ class AgentRuntime:
                 f"Hãy đóng vai hệ thống phân tích bộ nhớ Hermes Memory cho trợ lý AI Aegis.\n"
                 f"Phân tích tin nhắn của người dùng sau đây:\n"
                 f"người dùng: \"{user_msg}\"\n\n"
-                f"Nhiệm vụ: Tìm xem trong tin nhắn có chứa THÔNG TIN CÁ NHÂN, SỞ THÍCH, MÔI TRƯỜNG CÔNG NGHỆ, THÓI QUEN hoặc NGUYÊN TẮC CẦN GHI NHỚ LÂU DÀI nào của người dùng hay không.\n"
-                f"Nếu CÓ, hãy trả về 1 JSON Object duy nhất có dạng:\n"
-                f'{{\n  "has_memory": true,\n  "category": "preference" hoặc "tech_stack" hoặc "fact" hoặc "habit",\n  "key": "Tên ngắn gọn về đặc điểm",\n  "value": "Mô tả chi tiết bằng Tiếng Việt"\n}}\n'
-                f'Nếu KHÔNG CÓ thông tin cá nhân đáng ghi nhớ lâu dài (ví dụ chỉ hỏi chào hỏi đơn thuần, câu hỏi tức thời), trả về:\n'
+                f"Nhiệm vụ: Hãy lọc tìm xem trong tin nhắn có chứa THÔNG TIN CÁ NHÂN quan trọng (tên, chức vụ, vai trò), MÔI TRƯỜNG CÔNG NGHỆ/HỆ ĐIỀU HÀNH (VD: Ubuntu, Docker, Node.js), hoặc NGUYÊN TẮC CÁ NHÂN lâu dài nào thực sự cần thiết cho công việc hay không.\n"
+                f"QUY TẮC LỌC NGHIÊM NGẶT:\n"
+                f"1. TUYỆT ĐỐI KHÔNG lưu các thông tin vụn vặt, trò chuyện phiếm, sở thích động vật/thú cưng, đồ ăn, phim ảnh, thời tiết, hoặc các câu hỏi nhất thời mang tính chất tán gẫu (VD: thích mèo, thích chó, thích ăn pizza... -> BỎ QUA, has_memory: false).\n"
+                f"2. Chỉ lưu những thông tin kỹ thuật, thông tin định danh người dùng, hoặc hướng dẫn phong cách làm việc có tính chất lâu dài và thực sự giúp ích cho trợ lý quản trị hệ thống.\n\n"
+                f"Nếu CÓ thông tin thỏa mãn, hãy trả về 1 JSON Object duy nhất:\n"
+                f'{{\n  "has_memory": true,\n  "category": "preference" hoặc "tech_stack" hoặc "fact" || "habit",\n  "key": "Tên đặc trưng ngắn gọn (bằng tiếng Anh viết thường hoặc tiếng Việt ngắn gọn, ví dụ: user_name, main_os, preferred_db)",\n  "value": "Mô tả chi tiết bằng Tiếng Việt"\n}}\n'
+                f'Nếu KHÔNG CÓ thông tin công việc/cá nhân cốt lõi nào cần ghi nhớ lâu dài, trả về:\n'
                 f'{{\n  "has_memory": false\n}}'
             )
 
