@@ -532,7 +532,7 @@ class AgentRuntime:
         search_query = custom_topic
         if is_weather_topic:
             search_query = f"{custom_topic} nhiệt độ độ ẩm tốc độ gió chỉ số UV khả năng mưa hôm nay và 5 ngày tới"
-        b_results = await brave_search.search(query=search_query, count=5)
+        b_results = await brave_search.search(query=search_query, count=10)
         search_ctx = brave_search.format_results_for_llm(b_results)
 
         if is_weather_topic:
@@ -555,18 +555,31 @@ class AgentRuntime:
         prompt = (
             f"{time_ctx}\n\n"
             f"{search_ctx}\n\n"
-            f"Bạn là hệ thống điểm tin {'thời tiết' if is_weather_topic else 'công nghệ'} tự động thời gian thực cho Aegis Assistant tại Việt Nam.\n"
-            f"Nhiệm vụ: Dựa trên kết quả tìm kiếm thời gian thực (Brave Search) ở trên, hãy tổng hợp 3 tin tức MỚI NHẤT tính tới ngày {today_date} về chủ đề: '{custom_topic}'.\n\n"
-            f"YÊU CẦU THỜI GIAN & ĐỊNH DẠNG:\n"
+            f"Bạn là biên tập viên cấp cao chuyên tổng hợp báo cáo tình hình {'thời tiết' if is_weather_topic else 'công nghệ'} "
+            f"cho Aegis Assistant tại Việt Nam, làm việc theo phong cách các hãng thông tấn uy tín (VnExpress, Tuổi Trẻ, "
+            f"Reuters, TechCrunch...).\n"
+            f"Nhiệm vụ: Dựa trên TOÀN BỘ kết quả tìm kiếm thời gian thực (Brave Search) ở trên — đối chiếu, tổng hợp và "
+            f"chắt lọc thông tin từ NHIỀU nguồn khác nhau — hãy viết 3 BÁO CÁO CHUYÊN SÂU (không phải tin vắn) về diễn biến "
+            f"MỚI NHẤT tính tới ngày {today_date} liên quan tới chủ đề: '{custom_topic}'.\n\n"
+            f"YÊU CẦU NỘI DUNG & ĐỘ SÂU:\n"
             f"{data_requirements}\n"
-            f"4. Trả về duy nhất 1 JSON Array gồm đúng 3 JSON Object có cấu trúc chính xác sau:\n"
+            f"4. Mỗi báo cáo (`contentDetail`) PHẢI có độ dài tối thiểu 5-7 đoạn văn Markdown, cấu trúc như một bài báo cáo "
+            f"tình hình thực sự, gồm các phần rõ ràng bằng heading `##`:\n"
+            f"   - `## Tổng quan`: bối cảnh chung, tóm lược diễn biến chính.\n"
+            f"   - `## Diễn biến chi tiết`: trình bày đầy đủ các sự kiện/số liệu theo trình tự thời gian hoặc theo từng khía cạnh, "
+            f"đối chiếu thông tin giữa các nguồn nếu có khác biệt.\n"
+            f"   - `## Số liệu & Dữ liệu cụ thể`: liệt kê rõ các con số, thống kê, mốc thời gian trích từ Brave Search.\n"
+            f"   - `## Nhận định / Tác động`: phân tích ý nghĩa, ảnh hưởng hoặc khuyến nghị hành động cho người đọc.\n"
+            f"5. Khi tổng hợp từ nhiều nguồn, hãy chú thích tên nguồn ngay trong văn bản (ví dụ: \"Theo VnExpress...\", "
+            f"\"Trung tâm Dự báo Khí tượng Thủy văn cho biết...\") thay vì chỉ liệt kê link ở cuối.\n"
+            f"6. Trả về duy nhất 1 JSON Array gồm đúng 3 JSON Object có cấu trúc chính xác sau:\n"
             f"[\n"
             f"  {{\n"
-            f'    "title": "Tiêu đề tin tức mới nhất tính đến hôm nay {today_date}",\n'
-            f'    "description": "Tóm tắt ngắn 1-2 câu về sự kiện mới.",\n'
+            f'    "title": "Tiêu đề báo cáo mới nhất tính đến hôm nay {today_date}",\n'
+            f'    "description": "Tóm tắt ngắn 1-2 câu (lead) về nội dung báo cáo.",\n'
             f'    "category": "news",\n'
-            f'    "contentDetail": "Chi tiết tin tức 2-3 đoạn văn bản Markdown tổng hợp diễn biến mới nhất, bắt buộc kèm số liệu/con số/tên riêng cụ thể{" (nhiệt độ, độ ẩm, gió, UV, % mưa)" if is_weather_topic else ""}, không viết chung chung.",\n'
-            f'    "sourceUrl": "Link URL thực tế từ kết quả tìm kiếm Brave Search"\n'
+            f'    "contentDetail": "Báo cáo Markdown đầy đủ 5-7 đoạn theo đúng cấu trúc heading ở trên, bắt buộc kèm số liệu/con số/tên riêng cụ thể{" (nhiệt độ, độ ẩm, gió, UV, % mưa)" if is_weather_topic else ""}, tổng hợp từ nhiều nguồn, không viết chung chung.",\n'
+            f'    "sourceUrl": "Link URL thực tế đáng tin cậy nhất từ kết quả tìm kiếm Brave Search"\n'
             f"  }}\n"
             f"]\n"
             f"Chú ý: Trong các chuỗi text JSON, không dùng ký tự xuống dòng trực tiếp mà dùng \\n."
