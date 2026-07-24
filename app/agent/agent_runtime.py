@@ -213,42 +213,6 @@ class AgentRuntime:
         time_ctx = _get_current_time_context()
         base_instruction = req.systemInstruction or "Bạn là Aegis, trợ lý ảo cá nhân..."
 
-        # Read USER.md & MEMORY.md directly (Hermes memory engine architecture)
-        memory_ctx = ""
-        try:
-            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            memories_dir = os.path.join(base_dir, "memories", user.email)
-            user_md_path = os.path.join(memories_dir, "USER.md")
-            memory_md_path = os.path.join(memories_dir, "MEMORY.md")
-
-            if not os.path.exists(memories_dir):
-                os.makedirs(memories_dir, exist_ok=True)
-            if not os.path.exists(user_md_path):
-                with open(user_md_path, "w", encoding="utf-8") as f:
-                    f.write("# Hồ sơ Chủ nhân (USER.md)\n\nTệp tin này lưu trữ các đặc điểm cá nhân, vai trò, sở thích và chỉ thị riêng của chủ nhân.\n\n## Thông tin chung\n- Tên: Nam\n- Vai trò: AI Developer & Security Expert\n\n## Chỉ thị phong cách làm việc\n")
-            if not os.path.exists(memory_md_path):
-                with open(memory_md_path, "w", encoding="utf-8") as f:
-                    f.write("# Chỉ thị Công nghệ & Quy tắc Dự án (MEMORY.md)\n\nTệp tin này lưu trữ môi trường công nghệ, quy tắc dự án và các bài học kinh nghiệm.\n\n## Môi trường & Tech Stack\n- OS: Linux Ubuntu\n- Backend: Python FastAPI, SQLite\n- Frontend: React TypeScript, Tailwind CSS\n- Native: Capacitor (Android)\n\n## Hướng dẫn dự án & Server\n")
-
-            user_md_content = ""
-            memory_md_content = ""
-            with open(user_md_path, "r", encoding="utf-8") as f:
-                user_md_content = f.read().strip()
-            with open(memory_md_path, "r", encoding="utf-8") as f:
-                memory_md_content = f.read().strip()
-
-            memory_ctx = (
-                "=== BỘ NHỚ LÝ LỊCH VỀ CHỦ NHÂN (HERMES MEMORY ENGINE) ===\n"
-                "Dưới đây là các tệp thông tin và quy tắc đã ghi nhớ (đọc trực tiếp từ USER.md và MEMORY.md):\n\n"
-                f"--- USER PROFILE (USER.md) ---\n{user_md_content}\n\n"
-                f"--- CONVENTIONS & LESSONS (MEMORY.md) ---\n{memory_md_content}\n\n"
-                "Hãy vận dụng linh hoạt bộ nhớ trên để tự động cá nhân hóa câu trả lời và làm việc thấu hiểu chủ nhân.\n"
-            )
-        except Exception as e:
-            logger.warning(f"Could not load Markdown memory files (USER.md/MEMORY.md): {e}")
-
-        system_instruction = f"{base_instruction}\n\n{memory_ctx}\n\n{time_ctx}"
-
         contents = []
         last_user_msg = ""
         last_user_img = None
@@ -294,21 +258,81 @@ class AgentRuntime:
                 last_user_file = msg.file
                 last_user_fileName = msg.fileName
 
+        # Only inject tech-stack/project memory (MEMORY.md) when the current question
+        # is actually about tech/dev/ops — prevents it from bleeding into unrelated
+        # topics like weather, news, or general chit-chat.
+        tech_keywords = [
+            "code", "lập trình", "developer", "dev ", "devops", "deploy", "docker",
+            "kubernetes", "k8s", "server", "máy chủ", "database", "sql", "api",
+            "backend", "frontend", "git", "python", "javascript", "typescript",
+            "react", "fastapi", "linux", "ubuntu", "ssh", "nginx", "ci/cd",
+            "container", "terminal", "script", "config", "bug", "lỗi hệ thống",
+            "capacitor", "android studio", "gradle"
+        ]
+        is_tech_topic = bool(last_user_msg) and any(kw in last_user_msg.lower() for kw in tech_keywords)
+
+        # Read USER.md & MEMORY.md directly (Hermes memory engine architecture)
+        memory_ctx = ""
+        try:
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            memories_dir = os.path.join(base_dir, "memories", user.email)
+            user_md_path = os.path.join(memories_dir, "USER.md")
+            memory_md_path = os.path.join(memories_dir, "MEMORY.md")
+
+            if not os.path.exists(memories_dir):
+                os.makedirs(memories_dir, exist_ok=True)
+            if not os.path.exists(user_md_path):
+                with open(user_md_path, "w", encoding="utf-8") as f:
+                    f.write("# Hồ sơ Chủ nhân (USER.md)\n\nTệp tin này lưu trữ các đặc điểm cá nhân, vai trò, sở thích và chỉ thị riêng của chủ nhân.\n\n## Thông tin chung\n- Tên: Nam\n- Vai trò: AI Developer & Security Expert\n\n## Chỉ thị phong cách làm việc\n")
+            if not os.path.exists(memory_md_path):
+                with open(memory_md_path, "w", encoding="utf-8") as f:
+                    f.write("# Chỉ thị Công nghệ & Quy tắc Dự án (MEMORY.md)\n\nTệp tin này lưu trữ môi trường công nghệ, quy tắc dự án và các bài học kinh nghiệm.\n\n## Môi trường & Tech Stack\n- OS: Linux Ubuntu\n- Backend: Python FastAPI, SQLite\n- Frontend: React TypeScript, Tailwind CSS\n- Native: Capacitor (Android)\n\n## Hướng dẫn dự án & Server\n")
+
+            user_md_content = ""
+            with open(user_md_path, "r", encoding="utf-8") as f:
+                user_md_content = f.read().strip()
+
+            memory_ctx = (
+                "=== BỘ NHỚ LÝ LỊCH VỀ CHỦ NHÂN (HERMES MEMORY ENGINE) ===\n"
+                f"--- USER PROFILE (USER.md) ---\n{user_md_content}\n\n"
+            )
+
+            if is_tech_topic:
+                memory_md_content = ""
+                with open(memory_md_path, "r", encoding="utf-8") as f:
+                    memory_md_content = f.read().strip()
+                memory_ctx += (
+                    f"--- CONVENTIONS & LESSONS (MEMORY.md) ---\n{memory_md_content}\n\n"
+                    "Hãy vận dụng linh hoạt bộ nhớ trên để tự động cá nhân hóa câu trả lời và làm việc thấu hiểu chủ nhân.\n"
+                )
+            else:
+                memory_ctx += (
+                    "Chỉ dùng thông tin USER PROFILE trên để xưng hô/cá nhân hóa giọng văn. "
+                    "TUYỆT ĐỐI KHÔNG tự chèn các chi tiết công nghệ, tech stack, server, quy tắc dự án vào câu trả lời "
+                    "vì câu hỏi hiện tại KHÔNG liên quan tới chủ đề kỹ thuật/công nghệ.\n"
+                )
+        except Exception as e:
+            logger.warning(f"Could not load Markdown memory files (USER.md/MEMORY.md): {e}")
+
+        system_instruction = f"{base_instruction}\n\n{memory_ctx}\n\n{time_ctx}"
+
         # Construct dynamic agent thinking log (Hermes thinking simulation)
         thinking_lines = [
             "Đang phân tích tin nhắn và tệp đính kèm của chủ nhân...",
             f"Đã chèn ngữ cảnh thời gian thực tế: {datetime.now().strftime('%H:%M:%S (%d/%m/%Y)')}"
         ]
-        
+
         try:
             base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             user_md_path = os.path.join(base_dir, "memories", user.email, "USER.md")
             memory_md_path = os.path.join(base_dir, "memories", user.email, "MEMORY.md")
-            
+
             if os.path.exists(user_md_path):
                 thinking_lines.append("Đọc bộ nhớ chủ nhân (USER.md): Đã nạp đặc điểm và phong cách giao tiếp cá nhân.")
-            if os.path.exists(memory_md_path):
-                thinking_lines.append("Đọc bộ nhớ dự án (MEMORY.md): Đã nạp môi trường công nghệ và quy tắc vận hành.")
+            if is_tech_topic and os.path.exists(memory_md_path):
+                thinking_lines.append("Đọc bộ nhớ dự án (MEMORY.md): Đã nạp môi trường công nghệ và quy tắc vận hành (câu hỏi liên quan kỹ thuật).")
+            elif os.path.exists(memory_md_path):
+                thinking_lines.append("Bỏ qua bộ nhớ dự án (MEMORY.md): Câu hỏi không liên quan tới kỹ thuật/công nghệ.")
         except Exception:
             pass
 
