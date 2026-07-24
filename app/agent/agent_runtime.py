@@ -154,6 +154,34 @@ class AgentRuntime:
     def __init__(self):
         self.gemini = gemini_client
 
+    async def _classify_tech_topic(self, message: str, tech_keywords: List[str]) -> bool:
+        """
+        Decides whether a user message is tech/dev/DevOps-related, so MEMORY.md
+        (tech stack, server conventions) is only injected into the chat prompt when relevant.
+        Uses a single cheap, low-temperature Gemini call; falls back to plain keyword
+        matching if the classification call fails for any reason (rate limit, timeout, etc.).
+        """
+        if not message:
+            return False
+
+        try:
+            classify_prompt = (
+                f'Tin nhắn của người dùng: "{message}"\n\n'
+                "Tin nhắn này có liên quan tới chủ đề kỹ thuật/công nghệ/lập trình/DevOps/server/phần mềm không "
+                "(ví dụ: viết code, deploy, debug, database, API, Linux, Docker, cấu hình hệ thống, Git)?\n"
+                "Trả lời DUY NHẤT một từ: YES hoặc NO."
+            )
+            result = await self.gemini.generate_content(
+                contents=[{"role": "user", "parts": [{"text": classify_prompt}]}],
+                system_instruction="Bạn là bộ phân loại chủ đề nhị phân. Chỉ trả lời YES hoặc NO, không giải thích gì thêm.",
+                temperature=0.0,
+                max_retries_per_model=1
+            )
+            return result.strip().upper().startswith("YES")
+        except Exception as e:
+            logger.warning(f"Tech-topic classification failed, falling back to keyword match: {e}")
+            return any(kw in message.lower() for kw in tech_keywords)
+
     async def generate_daily_briefing(self, req: BriefingRequest) -> str:
         """
         Synthesizes tasks, servers, and notification status with real-time Vietnam context.
@@ -269,7 +297,7 @@ class AgentRuntime:
             "container", "terminal", "script", "config", "bug", "lỗi hệ thống",
             "capacitor", "android studio", "gradle"
         ]
-        is_tech_topic = bool(last_user_msg) and any(kw in last_user_msg.lower() for kw in tech_keywords)
+        is_tech_topic = await self._classify_tech_topic(last_user_msg, tech_keywords)
 
         # Read USER.md & MEMORY.md directly (Hermes memory engine architecture)
         memory_ctx = ""
