@@ -473,24 +473,47 @@ class AgentRuntime:
         topic = req.topic or "tech-news"
         custom_topic = req.customTopic or f"Công nghệ AI, Máy chủ & Android năm {today_year}"
 
+        weather_keywords = ["thời tiết", "nhiệt độ", "dự báo", "mưa", "weather", "forecast"]
+        is_weather_topic = any(kw in custom_topic.lower() for kw in weather_keywords)
+
         from app.services.brave_search import brave_search
-        b_results = await brave_search.search(query=custom_topic, count=5)
+        search_query = custom_topic
+        if is_weather_topic:
+            search_query = f"{custom_topic} nhiệt độ độ ẩm tốc độ gió chỉ số UV khả năng mưa hôm nay và 5 ngày tới"
+        b_results = await brave_search.search(query=search_query, count=5)
         search_ctx = brave_search.format_results_for_llm(b_results)
+
+        if is_weather_topic:
+            topic_specific_note = (
+                f" Đây là chủ đề THỜI TIẾT: BẮT BUỘC trích xuất nhiệt độ (°C, cao nhất/thấp nhất), độ ẩm (%), "
+                f"tốc độ gió (km/h), chỉ số UV, và khả năng mưa (%) cho từng ngày có dữ liệu."
+            )
+        else:
+            topic_specific_note = ""
+
+        data_requirements = (
+            f"1. BẮT BUỘC trích xuất và trình bày SỐ LIỆU, CON SỐ, TÊN RIÊNG CỤ THỂ (ví dụ: số liệu thống kê, giá cả, "
+            f"tên sản phẩm/phiên bản/repository/công ty, mốc thời gian chính xác) từ dữ liệu Brave Search ở trên.{topic_specific_note}\n"
+            f"2. TUYỆT ĐỐI KHÔNG được viết chung chung, mơ hồ kiểu 'có nhiều diễn biến mới', 'cần lưu ý', 'cẩn trọng' "
+            f"mà không kèm dữ liệu cụ thể phía sau. Nếu một mục thiếu dữ liệu cụ thể, hãy nêu rõ những gì có và bỏ qua "
+            f"phần thiếu, không được thay thế bằng câu chung chung.\n"
+            f"3. Sử dụng dữ liệu thực tế từ Brave Search, trích dẫn đúng `sourceUrl` thực tế từ bài viết tìm kiếm được."
+        )
 
         prompt = (
             f"{time_ctx}\n\n"
             f"{search_ctx}\n\n"
-            f"Bạn là hệ thống điểm tin công nghệ tự động thời gian thực cho Aegis Assistant tại Việt Nam.\n"
+            f"Bạn là hệ thống điểm tin {'thời tiết' if is_weather_topic else 'công nghệ'} tự động thời gian thực cho Aegis Assistant tại Việt Nam.\n"
             f"Nhiệm vụ: Dựa trên kết quả tìm kiếm thời gian thực (Brave Search) ở trên, hãy tổng hợp 3 tin tức MỚI NHẤT tính tới ngày {today_date} về chủ đề: '{custom_topic}'.\n\n"
             f"YÊU CẦU THỜI GIAN & ĐỊNH DẠNG:\n"
-            f"1. Sử dụng dữ liệu thực tế từ Brave Search, trích dẫn đúng `sourceUrl` thực tế từ bài viết tìm kiếm được.\n"
-            f"2. Trả về duy nhất 1 JSON Array gồm đúng 3 JSON Object có cấu trúc chính xác sau:\n"
+            f"{data_requirements}\n"
+            f"4. Trả về duy nhất 1 JSON Array gồm đúng 3 JSON Object có cấu trúc chính xác sau:\n"
             f"[\n"
             f"  {{\n"
             f'    "title": "Tiêu đề tin tức mới nhất tính đến hôm nay {today_date}",\n'
             f'    "description": "Tóm tắt ngắn 1-2 câu về sự kiện mới.",\n'
             f'    "category": "news",\n'
-            f'    "contentDetail": "Chi tiết tin tức 2-3 đoạn văn bản Markdown tổng hợp diễn biến mới nhất.",\n'
+            f'    "contentDetail": "Chi tiết tin tức 2-3 đoạn văn bản Markdown tổng hợp diễn biến mới nhất, bắt buộc kèm số liệu/con số/tên riêng cụ thể{" (nhiệt độ, độ ẩm, gió, UV, % mưa)" if is_weather_topic else ""}, không viết chung chung.",\n'
             f'    "sourceUrl": "Link URL thực tế từ kết quả tìm kiếm Brave Search"\n'
             f"  }}\n"
             f"]\n"
@@ -501,7 +524,14 @@ class AgentRuntime:
         
         raw_output = await self.gemini.generate_content(
             contents=contents,
-            system_instruction=f"Bạn là AI chuyên gia tổng hợp tin tức từ kết quả Brave Search tại Việt Nam ngày {today_date}. Trả về JSON array hợp lệ 100%.",
+            system_instruction=(
+                f"Bạn là AI chuyên gia tổng hợp tin tức từ kết quả Brave Search tại Việt Nam ngày {today_date}. "
+                f"Trả về JSON array hợp lệ 100%. Luôn ưu tiên số liệu, con số, tên riêng cụ thể thay vì nhận định chung chung."
+                + (
+                    " Khi chủ đề là thời tiết, bắt buộc có nhiệt độ, độ ẩm, gió, UV, % mưa cụ thể."
+                    if is_weather_topic else ""
+                )
+            ),
             temperature=0.4,
             google_search_grounding=False,
             json_mode=False,
