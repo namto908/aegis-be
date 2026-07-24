@@ -25,8 +25,18 @@ def create_notification(
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user)
 ):
-    """POST /api/notifications - Create notification"""
+    """POST /api/notifications - Create notification (idempotent by id, since the
+    frontend's sync effect can occasionally re-fire and POST the same freshly-created
+    notification twice before its id is reflected back into local state)."""
     notif_id = notif_in.id or f"notif_{int(time.time() * 1000)}"
+
+    existing = db.query(NotificationDB).filter(
+        NotificationDB.id == notif_id,
+        NotificationDB.user_id == current_user.id
+    ).first()
+    if existing:
+        return existing
+
     db_notif = NotificationDB(
         id=notif_id,
         user_id=current_user.id,
